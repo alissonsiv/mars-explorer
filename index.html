@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mars Explorer | Operation Jezero</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<canvas id="mars-canvas"></canvas>
+<div id="vignette"></div>
+<div id="tooltip"></div>
+
+<!-- LOADING -->
+<div id="loading-screen">
+  <div class="planet-spinner"></div>
+  <div class="progress-track"><div class="progress-bar" id="progress-bar"></div></div>
+  <div id="loading-msg">Initializing systems...</div>
+</div>
+
+<!-- START SCREEN -->
+<div id="start-screen">
+  <div class="start-content">
+    <div class="start-emblem">
+      <div class="ring"></div>
+      <div class="core">🔴</div>
+    </div>
+
+    <div class="start-eyebrow">Interplanetary Survival Guide</div>
+    <h1>MARS EXPLORER</h1>
+    <div class="start-subtitle">Martian Map · Survival Guide</div>
+
+    <p class="lead">
+      An interplanetary survival guide. Explore real NASA mission data about Mars,
+      or embark on a guided spacewalk through Jezero Crater, physically landing at every
+      real location explored by the Perseverance rover.
+    </p>
+
+    <div class="start-divider"></div>
+
+    <div class="start-actions">
+      <button class="start-btn primary" id="btn-start-story">
+        <span class="btn-ico">🎬</span> Guided Mission: Operation Jezero <span class="btn-arrow">➜</span>
+      </button>
+      <button class="start-btn secondary" id="btn-start-explore">
+        <span class="btn-ico">🧭</span> Explore Mars Freely <span class="btn-arrow">➜</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header id="app-header">
+  <div class="brand">
+    <div class="dot"></div>
+    <div>
+      <h1>MARS EXPLORER</h1>
+      <span>Martian Map · Survival Guide</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <button class="icon-btn" id="btn-home" title="Home screen">🏠</button>
+    <button class="cta-header-btn" id="btn-open-story">🎬 Guided Mission</button>
+  </div>
+</header>
+
+<!-- LAYERS PANEL -->
+<div class="panel" id="layers-panel">
+  <div class="panel-title">🗂️ DATA LAYERS</div>
+  <div id="layers-list"></div>
+  <div id="legend-box">
+    <div id="legend-title">Real surface (cameras)</div>
+    <div class="legend-bar" id="legend-gradient" style="background:linear-gradient(90deg,#6b2f1a,#d98c5f)"></div>
+    <div class="legend-labels"><span id="legend-min">-</span><span id="legend-max">-</span></div>
+  </div>
+  <div class="control-row">
+    <button class="icon-btn on" id="btn-rotate" title="Auto-rotate">🔄</button>
+    <button class="icon-btn" id="btn-reset" title="Reset camera">🎯</button>
+    <button class="icon-btn" id="btn-fullscreen" title="Fullscreen">⛶</button>
+  </div>
+</div>
+
+<!-- MISSION LOG -->
+<div class="panel" id="mission-log"></div>
+
+<!-- RIGHT PANEL -->
+<div class="panel" id="right-panel">
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="poi">LOCATIONS</button>
+    <button class="tab-btn" data-tab="info">DETAILS</button>
+  </div>
+  <div class="tab-content active" id="tab-poi"><div id="poi-list"></div></div>
+  <div class="tab-content" id="tab-info">
+    <div id="info-empty">Click a marker on the planet or "View Details" in the location list to see real photos and scientific data.</div>
+    <div id="info-content"></div>
+  </div>
+</div>
+
+<!-- TELEMETRY -->
+<div class="panel" id="telemetry">
+  <div class="tele-item"><div class="t-label">SOL</div><div class="t-value" id="tele-sol">1253</div></div>
+  <div class="tele-item"><div class="t-label">LOCAL TIME (MTC)</div><div class="t-value" id="tele-time">14:27</div></div>
+  <div class="tele-item"><div class="t-label">TEMPERATURE</div><div class="t-value" id="tele-temp">-56°C</div></div>
+  <div class="tele-item"><div class="t-label">WIND</div><div class="t-value" id="tele-wind">8 m/s</div></div>
+  <div class="tele-item"><div class="t-label">ATM. PRESSURE</div><div class="t-value" id="tele-pressure">636 Pa</div></div>
+  <div class="tele-item warn"><div class="t-label">RADIATION</div><div class="t-value" id="tele-rad">0.42 mSv/day</div></div>
+</div>
+
+<!-- ======================= STORY MODE UI ======================= -->
+<div class="story-modal" id="story-briefing">
+  <div class="story-modal-inner panel">
+    <div class="mission-badge">ARES-7 CREWED MISSION · SOL 1350</div>
+    <h2>🔴 OPERATION JEZERO<br>First Human Steps</h2>
+    <p class="story-lead">
+      Year 2035. You are <strong>Commander Elena Vasquez</strong>, leader of the first human
+      expedition to the surface of Mars. Your mission: physically land at every key site remotely
+      explored by the <strong>Perseverance</strong> rover inside Jezero Crater, walking across the
+      real surface of each location.
+    </p>
+    <div class="briefing-grid">
+      <div><span>ORIGIN</span><strong id="brief-origin">-</strong></div>
+      <div><span>DESTINATION</span><strong id="brief-dest">-</strong></div>
+      <div><span>TOTAL DISTANCE</span><strong id="brief-dist">-</strong></div>
+      <div><span>SCIENTIFIC STOPS</span><strong id="brief-stops">-</strong></div>
+    </div>
+    <button class="cta-btn" id="btn-begin-story">🚀 Begin Spacewalk</button>
+    <button class="mini-btn" id="btn-cancel-story" style="width:100%;">Cancel</button>
+  </div>
+</div>
+
+<div id="story-panel">
+  <div class="story-top-bar panel">
+    <button class="icon-btn" id="btn-exit-story" title="Exit mission mode">✕</button>
+    <div class="story-dots" id="story-dots"></div>
+    <div class="story-o2-gauge">
+      <span>SUIT O₂</span>
+      <div class="gauge-track"><div class="gauge-fill" id="o2-gauge-fill"></div></div>
+    </div>
+  </div>
+  <div id="story-progress-wrap"><div id="story-progress-fill"></div></div>
+  <div id="story-target-info">
+    <span id="story-target-status">🎯 Head to the scientific collection beacon</span>
+    <span class="sep">·</span>
+    <span>Distance:</span>
+    <span id="story-target-distance">-- m</span>
+  </div>
+
+  <div class="story-card panel">
+    <div class="chapter-tag" id="story-chapter-tag">CHAPTER 1 / 6</div>
+    <h2 id="story-title">-</h2>
+    <div class="story-subtitle" id="story-subtitle">-</div>
+    <div class="story-body">
+      <div class="story-main">
+        <div class="photo-frame" id="story-photo-frame">
+          <img id="story-photo-img" alt="Location photo">
+        </div>
+        <div class="photo-caption" id="story-photo-caption">Loading image...</div>
+        <div class="story-narrative" id="story-narrative"></div>
+      </div>
+      <div class="story-sidebar">
+        <div class="story-stat"><span>Leg distance</span><strong id="story-leg-dist">-</strong></div>
+        <div class="story-stat"><span>Total distance</span><strong id="story-total-dist">-</strong></div>
+        <div class="story-stat"><span>Elevation</span><strong id="story-elevation">-</strong></div>
+        <div class="story-stat"><span>Sample collected</span><strong id="story-sample">-</strong></div>
+        <div class="hazard-box" id="story-hazard"></div>
+        <div class="resource-box" id="story-resource"></div>
+      </div>
+    </div>
+    <div class="story-controls">
+      <button class="mini-btn" id="btn-prev-chapter">⬅ Previous</button>
+      <div class="story-objective" id="story-objective"></div>
+      <button class="mini-btn primary" id="btn-next-chapter">Next ➡</button>
+    </div>
+  </div>
+</div>
+
+<div class="story-modal" id="story-complete">
+  <div class="story-modal-inner panel">
+    <div class="mission-badge" style="background:rgba(57,255,136,.15);color:#39ff88;border-color:rgba(57,255,136,.4)">MISSION COMPLETE</div>
+    <h2>🏁 Witch Hazel Hill Reached</h2>
+    <p class="story-lead">
+      You have completed the first human traverse of Jezero Crater, physically landing at every
+      location remotely explored by the Perseverance rover over more than a decade.
+    </p>
+    <div class="briefing-grid" id="summary-grid"></div>
+    <button class="cta-btn" id="btn-restart-story">🔁 Redo Mission</button>
+    <button class="mini-btn" id="btn-finish-exit" style="width:100%;">Return to Home Screen</button>
+  </div>
+</div>
+
+<!-- SURFACE MODE HUD -->
+<div id="surface-hud">
+  <div class="surface-topbar panel">
+    <button class="icon-btn" id="btn-exit-surface" title="Return to orbit">⬆️</button>
+    <div class="surface-location" id="surface-location-label">Martian Surface</div>
+    <div class="surface-hint">Drag to look · WASD to move</div>
+  </div>
+  <div class="surface-crosshair">+</div>
+  <div class="surface-controls">
+    <div class="surf-dpad">
+      <button class="surf-btn" id="surf-btn-forward">▲</button>
+      <div class="surf-dpad-row">
+        <button class="surf-btn" id="surf-btn-left">◀</button>
+        <button class="surf-btn" id="surf-btn-back">▼</button>
+        <button class="surf-btn" id="surf-btn-right">▶</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LIBS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<!-- APP SCRIPTS (order matters) -->
+<script src="js/utils.js"></script>
+<script src="js/data.js"></script>
+<script src="js/textures.js"></script>
+<script src="js/scene.js"></script>
+<script src="js/surface.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
