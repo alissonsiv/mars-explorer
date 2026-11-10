@@ -12,6 +12,23 @@ let sceneReady = false;
 let initErrorMessage = null;
 
 /* =========================================================================
+   SAFE INVOKE — pequena rede de segurança para handlers de UI.
+   Se um botão falhar por qualquer motivo (erro de digitação, id errado,
+   etc.), o erro aparece no console e no Mission Log em vez de o botão
+   simplesmente "não fazer nada" silenciosamente.
+   ========================================================================= */
+function safeInvoke(fn, label){
+  return function(...args){
+    try {
+      fn.apply(this, args);
+    } catch (err) {
+      console.error(`[safeInvoke] Error executing "${label}":`, err);
+      try { addLog(`⚠️ Error in ${label}: ${err.message}`); } catch(e2){ /* ignore */ }
+    }
+  };
+}
+
+/* =========================================================================
    GENERAL APP STATE
    ========================================================================= */
 function setAppState(state){
@@ -465,41 +482,45 @@ function runLoading(){
    ========================================================================= */
 function attachUIEvents(){
   document.querySelectorAll('.tab-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>switchTab(btn.dataset.tab));
+    btn.addEventListener('click', safeInvoke(()=>switchTab(btn.dataset.tab), 'switchTab'));
   });
 
-  document.getElementById('btn-rotate').addEventListener('click', (e)=>{
+  document.getElementById('btn-rotate').addEventListener('click', safeInvoke((e)=>{
     controls.autoRotate = !controls.autoRotate;
     e.target.classList.toggle('on', controls.autoRotate);
-  });
-  document.getElementById('btn-reset').addEventListener('click', ()=>{
+  }, 'btn-rotate'));
+
+  document.getElementById('btn-reset').addEventListener('click', safeInvoke(()=>{
     animateCameraTo(new THREE.Vector3(10,35,140), new THREE.Vector3(0,0,0));
     if (selectedGroup){ resetMarkerStyle(selectedGroup); selectedGroup = null; }
-  });
-  document.getElementById('btn-fullscreen').addEventListener('click', ()=>{
+  }, 'btn-reset'));
+
+  document.getElementById('btn-fullscreen').addEventListener('click', safeInvoke(()=>{
     if (!document.fullscreenElement) document.documentElement.requestFullscreen();
     else document.exitFullscreen();
-  });
-  document.getElementById('btn-home').addEventListener('click', goHome);
+  }, 'btn-fullscreen'));
 
-  document.getElementById('btn-start-story').addEventListener('click', openBriefing);
-  document.getElementById('btn-start-explore').addEventListener('click', ()=>{
+  document.getElementById('btn-home').addEventListener('click', safeInvoke(goHome, 'goHome'));
+
+  document.getElementById('btn-start-story').addEventListener('click', safeInvoke(openBriefing, 'openBriefing'));
+  document.getElementById('btn-start-explore').addEventListener('click', safeInvoke(()=>{
     setAppState('dashboard');
     addLog('Free exploration mode activated.');
-  });
+  }, 'btn-start-explore'));
 
-  document.getElementById('btn-open-story').addEventListener('click', openBriefing);
-  document.getElementById('btn-cancel-story').addEventListener('click', ()=>{
+  document.getElementById('btn-open-story').addEventListener('click', safeInvoke(openBriefing, 'openBriefing'));
+  document.getElementById('btn-cancel-story').addEventListener('click', safeInvoke(()=>{
     document.getElementById('story-briefing').style.display = 'none';
-  });
-  document.getElementById('btn-begin-story').addEventListener('click', beginStory);
-  document.getElementById('btn-exit-story').addEventListener('click', goHome);
-  document.getElementById('btn-prev-chapter').addEventListener('click', prevChapter);
-  document.getElementById('btn-next-chapter').addEventListener('click', nextChapter);
-  document.getElementById('btn-restart-story').addEventListener('click', restartStory);
-  document.getElementById('btn-finish-exit').addEventListener('click', goHome);
+  }, 'btn-cancel-story'));
 
-  document.getElementById('btn-exit-surface').addEventListener('click', exitSurfaceMode);
+  document.getElementById('btn-begin-story').addEventListener('click', safeInvoke(beginStory, 'beginStory'));
+  document.getElementById('btn-exit-story').addEventListener('click', safeInvoke(goHome, 'goHome (exit-story)'));
+  document.getElementById('btn-prev-chapter').addEventListener('click', safeInvoke(prevChapter, 'prevChapter'));
+  document.getElementById('btn-next-chapter').addEventListener('click', safeInvoke(nextChapter, 'nextChapter'));
+  document.getElementById('btn-restart-story').addEventListener('click', safeInvoke(restartStory, 'restartStory'));
+  document.getElementById('btn-finish-exit').addEventListener('click', safeInvoke(goHome, 'goHome (finish-exit)'));
+
+  document.getElementById('btn-exit-surface').addEventListener('click', safeInvoke(exitSurfaceMode, 'exitSurfaceMode'));
 
   attachSurfaceControls();
 

@@ -37,6 +37,7 @@ function initScene(){
 
   starField = createStarField(); scene.add(starField);
 
+  // Textura procedural: carrega instantaneamente e serve como base/fallback.
   const marsTexture = buildMarsTexture(2048, 1024);
   const bumpTexture = buildMarsBumpMap(1024, 512);
   marsMesh = new THREE.Mesh(
@@ -44,6 +45,10 @@ function initScene(){
     new THREE.MeshPhongMaterial({ map: marsTexture, bumpMap: bumpTexture, bumpScale: 0.55, shininess: 1 })
   );
   scene.add(marsMesh);
+
+  // Tenta carregar uma imagem fotográfica real por cima da procedural.
+  // Se falhar por qualquer motivo, a procedural acima continua valendo.
+  loadRealisticMarsTextures();
 
   overlayTextures = {
     elevation: generateElevationLayer(), temperature: generateTemperatureLayer(),
@@ -69,6 +74,57 @@ function initScene(){
   renderer.domElement.addEventListener('pointerup', onPointerUp);
 
   animate();
+}
+
+/* =========================================================================
+   REALISTIC TEXTURE LOADING — substitui a textura procedural por uma
+   imagem fotográfica real (ex: mosaico de câmeras orbitais da NASA),
+   assim que ela terminar de carregar. Caso falhe (arquivo ausente,
+   rede lenta, etc.), mantém a procedural já aplicada — a aplicação
+   nunca fica sem textura.
+   ========================================================================= */
+const REAL_TEXTURE_PATHS = {
+  color: 'assets/textures/mars_color.jpg',
+  bump:  'assets/textures/mars_bump.jpg'
+};
+
+function loadRealisticMarsTextures(){
+  const loader = new THREE.TextureLoader();
+  const maxAniso = renderer.capabilities.getMaxAnisotropy();
+
+  loader.load(
+    REAL_TEXTURE_PATHS.color,
+    (tex) => {
+      tex.encoding = THREE.sRGBEncoding;
+      tex.anisotropy = maxAniso;
+      marsMesh.material.map = tex;
+      marsMesh.material.needsUpdate = true;
+      logSafe('Realistic Mars surface texture loaded.');
+    },
+    undefined,
+    (err) => {
+      console.warn('[textures] Could not load realistic color texture, keeping procedural texture.', err);
+    }
+  );
+
+  loader.load(
+    REAL_TEXTURE_PATHS.bump,
+    (tex) => {
+      tex.anisotropy = maxAniso;
+      marsMesh.material.bumpMap = tex;
+      marsMesh.material.bumpScale = 0.9;
+      marsMesh.material.needsUpdate = true;
+      logSafe('Realistic elevation (bump) map loaded.');
+    },
+    undefined,
+    (err) => {
+      console.warn('[textures] Could not load realistic bump map, keeping procedural bump.', err);
+    }
+  );
+}
+
+function logSafe(msg){
+  try { if (typeof addLog === 'function') addLog(msg); } catch(e){ /* ignore */ }
 }
 
 function createStarField(){
