@@ -62,6 +62,7 @@ function setAppState(state){
 function goHome(){
   document.getElementById('story-briefing').style.display = 'none';
   document.getElementById('story-complete').style.display = 'none';
+  toggleStoryCard(false);
 
   storyState.active = false;
   storyState.started = false;
@@ -427,6 +428,22 @@ function restartStory(){
   enterStoryChapterSurface(0);
 }
 
+let storyCardMinimized = false;
+function toggleStoryCard(forceState){
+  const card = document.getElementById('story-card');
+  const icon = document.getElementById('story-toggle-icon');
+  const text = document.getElementById('story-toggle-text');
+  if (!card) return;
+  if (typeof forceState === 'boolean'){
+    storyCardMinimized = forceState;
+  } else {
+    storyCardMinimized = !storyCardMinimized;
+  }
+  card.classList.toggle('minimized', storyCardMinimized);
+  if (icon) icon.textContent = storyCardMinimized ? '▴' : '▾';
+  if (text) text.textContent = storyCardMinimized ? 'Expand Log' : 'Minimize Log';
+}
+
 /* =========================================================================
    LOADING SCREEN
    ========================================================================= */
@@ -521,6 +538,17 @@ function attachUIEvents(){
   document.getElementById('btn-finish-exit').addEventListener('click', safeInvoke(goHome, 'goHome (finish-exit)'));
 
   document.getElementById('btn-exit-surface').addEventListener('click', safeInvoke(exitSurfaceMode, 'exitSurfaceMode'));
+
+  const btnToggleStory = document.getElementById('btn-toggle-story-card');
+  if (btnToggleStory){
+    btnToggleStory.addEventListener('click', safeInvoke(()=>toggleStoryCard(), 'toggleStoryCard'));
+  }
+  window.addEventListener('keydown', (e)=>{
+    if (e.code === 'KeyH' && appState === 'story'){
+      e.preventDefault();
+      toggleStoryCard();
+    }
+  });
 
   attachSurfaceControls();
 
