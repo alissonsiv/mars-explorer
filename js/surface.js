@@ -313,6 +313,160 @@ function buildSurfaceWorld(seed){
   playerIsGrounded = true;
 }
 
+/* -------------------- Official NASA Lander Asset & Procedural Fallback -------------------- */
+function buildProceduralApolloLunarModule(){
+  const group = new THREE.Group();
+
+  const goldMat = new THREE.MeshStandardMaterial({
+    color: 0xdaa520, metalness: 0.88, roughness: 0.28, emissive: 0x2a1a02
+  });
+  const darkMetal = new THREE.MeshStandardMaterial({
+    color: 0x23272d, metalness: 0.75, roughness: 0.45
+  });
+  const silverMat = new THREE.MeshStandardMaterial({
+    color: 0xdce1e8, metalness: 0.82, roughness: 0.32
+  });
+
+  // 1. Octagonal descent stage body (covered in gold thermal insulation foil)
+  const descentBody = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.8, 1.7, 8), goldMat);
+  descentBody.position.y = 1.65;
+  group.add(descentBody);
+
+  // Engine descent bell
+  const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.95, 0.95, 16, 1, true), darkMetal);
+  bell.position.y = 0.52;
+  group.add(bell);
+
+  // 4 Landing Gear Legs & Footpads
+  for (let i = 0; i < 4; i++){
+    const ang = (i * Math.PI / 2) + (Math.PI / 4);
+    const legGroup = new THREE.Group();
+
+    const strut = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 3.3, 8), darkMetal);
+    strut.rotation.z = 0.58;
+    strut.position.set(1.4, 0.9, 0);
+    legGroup.add(strut);
+
+    const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.09, 12), goldMat);
+    pad.position.set(2.45, 0.04, 0);
+    legGroup.add(pad);
+
+    legGroup.rotation.y = ang;
+    group.add(legGroup);
+  }
+
+  // 2. Ascent stage (Crew cabin)
+  const cabinMid = new THREE.Mesh(new THREE.CylinderGeometry(1.65, 1.85, 1.45, 8), silverMat);
+  cabinMid.position.y = 3.0;
+  group.add(cabinMid);
+
+  const cabinFront = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.15, 1.35), silverMat);
+  cabinFront.position.set(0, 2.95, 0.88);
+  group.add(cabinFront);
+
+  // EVA Egress Hatch & Ladder
+  const hatch = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.85, 0.1), darkMetal);
+  hatch.position.set(0, 2.85, 1.56);
+  group.add(hatch);
+
+  const ladder = new THREE.Mesh(new THREE.BoxGeometry(0.38, 2.3, 0.06), darkMetal);
+  ladder.position.set(0, 1.6, 1.7);
+  group.add(ladder);
+
+  // Docking Tunnel on top
+  const dock = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.55, 12), darkMetal);
+  dock.position.y = 3.95;
+  group.add(dock);
+
+  // Radar antenna
+  const dish = new THREE.Mesh(new THREE.ConeGeometry(0.55, 0.28, 16, 1, true), goldMat);
+  dish.rotation.x = -Math.PI / 3;
+  dish.position.set(1.15, 4.2, -0.6);
+  group.add(dish);
+
+  // Base Camp Navigation Beacon Light on top
+  const topLight = new THREE.PointLight(0x4fd1ff, 2.0, 35);
+  topLight.position.set(0, 4.4, 0);
+  group.add(topLight);
+
+  const beaconSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: glowTexture, color: 0x4fd1ff, transparent: true,
+    blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.85
+  }));
+  beaconSprite.scale.set(4, 4, 1);
+  beaconSprite.position.set(0, 4.4, 0);
+  group.add(beaconSprite);
+
+  return group;
+}
+
+function loadLanderModel(onLoad){
+  if (surfaceLanderMesh){
+    onLoad(surfaceLanderMesh.clone());
+    return;
+  }
+  if (!window.THREE || !THREE.GLTFLoader){
+    console.warn('GLTFLoader not available');
+    return;
+  }
+  if (!gltfLoaderInstance) gltfLoaderInstance = new THREE.GLTFLoader();
+
+  gltfLoaderInstance.load('assets/models/lunar_module.glb', (gltf)=>{
+    const model = gltf.scene;
+    model.traverse((child)=>{
+      if (child.isMesh){
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+
+    const box = new THREE.Box3().setFromObject(model);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const maxDim = Math.max(size.x, size.y, size.z) || 1;
+    const targetScale = 6.2 / maxDim;
+    model.scale.set(targetScale, targetScale, targetScale);
+
+    surfaceLanderMesh = model;
+    onLoad(model.clone());
+  }, undefined, (err)=>{
+    console.warn('Could not load lander model from file:', err);
+  });
+}
+
+function spawnLander(scene, seed){
+  if (scene._currentLander){
+    scene.remove(scene._currentLander);
+    scene._currentLander = null;
+  }
+
+  // Lander placed directly behind the astronaut spawn point (x:0, z:5.8)
+  const landerX = LANDER_POS.x;
+  const landerZ = LANDER_POS.z;
+  const landerY = terrainHeight(landerX, landerZ, seed);
+
+  // Solid collision radius so astronaut can't walk back into the spacecraft
+  surfaceRocksData.push({ x: landerX, z: landerZ, radius: 3.8 });
+
+  // 1. Immediately display the detailed procedural Apollo Lunar Lander (100% visible, 0ms latency, CORS-proof)
+  const procLander = buildProceduralApolloLunarModule();
+  procLander.position.set(landerX, landerY, landerZ);
+  procLander.rotation.y = Math.PI; // Ladder and hatch face forward towards the astronaut (-Z)
+  scene.add(procLander);
+  scene._currentLander = procLander;
+
+  // 2. Seamlessly upgrade to NASA GLB asset if web server / GLTFLoader allows
+  loadLanderModel((glbInstance)=>{
+    if (scene._currentLander === procLander){
+      scene.remove(procLander);
+      glbInstance.position.set(landerX, landerY, landerZ);
+      glbInstance.rotation.y = Math.PI;
+      scene.add(glbInstance);
+      scene._currentLander = glbInstance;
+    }
+  });
+}
+
 /* -------------------- Guided mission scientific beacon -------------------- */
 function spawnStoryTarget(seed){
   if (storyTargetMesh){ surfaceScene.remove(storyTargetMesh); storyTargetMesh.geometry.dispose(); storyTargetMesh.material.dispose(); storyTargetMesh = null; }
