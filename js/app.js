@@ -63,6 +63,19 @@ function goHome(){
   if (document.pointerLockElement) document.exitPointerLock();
   document.getElementById('story-briefing').style.display = 'none';
   document.getElementById('story-complete').style.display = 'none';
+  const chapterModal = document.getElementById('chapter-complete-modal');
+  if (chapterModal) chapterModal.style.display = 'none';
+  const landerPrompt = document.getElementById('lander-interact-prompt');
+  if (landerPrompt) landerPrompt.classList.remove('visible');
+  if (typeof isHoveringLander !== 'undefined') isHoveringLander = false;
+
+  const surfHud = document.getElementById('surface-hud');
+  if (surfHud) surfHud.style.display = 'none';
+  const storyPanel = document.getElementById('story-panel');
+  if (storyPanel) storyPanel.style.display = 'none';
+  const progressWrap = document.getElementById('story-progress-wrap');
+  if (progressWrap) progressWrap.style.display = 'none';
+
   toggleStoryCard(false);
 
   storyState.active = false;
@@ -442,6 +455,12 @@ function enterStoryChapterSurface(index){
   if (storyTransitioning) return;
   storyTransitioning = true;
 
+  const chapterModal = document.getElementById('chapter-complete-modal');
+  if (chapterModal) chapterModal.style.display = 'none';
+  const landerPrompt = document.getElementById('lander-interact-prompt');
+  if (landerPrompt) landerPrompt.classList.remove('visible');
+  if (typeof isHoveringLander !== 'undefined') isHoveringLander = false;
+
   storyState.index = index;
   const wp = storyWaypoints[index];
   loadChapterPhoto(wp);
@@ -458,6 +477,58 @@ function enterStoryChapterSurface(index){
   renderChapterContent(index);
 
   setTimeout(()=>{ storyTransitioning = false; }, 300);
+}
+
+/* -------------------- Mission Objective Secured Modal -------------------- */
+function onObjectiveCollected(){
+  if (document.pointerLockElement) document.exitPointerLock();
+
+  const isLast = (storyState.index === storyWaypoints.length - 1);
+  const wp = storyWaypoints[storyState.index];
+
+  const modal = document.getElementById('chapter-complete-modal');
+  if (!modal) return;
+
+  const titleEl = document.getElementById('chapter-complete-title');
+  const descEl = document.getElementById('chapter-complete-desc');
+  const gridEl = document.getElementById('chapter-complete-grid');
+  const nextBtn = document.getElementById('btn-chapter-next');
+
+  if (titleEl){
+    titleEl.textContent = isLast ? '🏆 EXPEDITION COMPLETE' : `🎉 CHAPTER ${storyState.index + 1} COMPLETED`;
+  }
+  if (descEl){
+    descEl.textContent = isLast
+      ? `You have reached ${wp.name} and completed all objectives of the human exploration of Jezero Crater!`
+      : `Scientific sample secured at ${wp.name}. Geological telemetry and core readings have been logged.`;
+  }
+  if (gridEl){
+    gridEl.innerHTML = `
+      <div><span>WAYPOINT</span><strong>${wp.name}</strong></div>
+      <div><span>SAMPLE</span><strong>${wp.sample || 'Core Regolith'}</strong></div>
+      <div><span>DISTANCE TRAVELED</span><strong>${storyState.totalDistance.toFixed(2)} km</strong></div>
+      <div><span>EXPEDITION PHASE</span><strong>${storyState.index + 1} / ${storyWaypoints.length}</strong></div>
+    `;
+  }
+
+  if (nextBtn){
+    if (isLast){
+      nextBtn.textContent = '🏠 Return to Home Screen';
+      nextBtn.onclick = ()=>{
+        modal.style.display = 'none';
+        goHome();
+        addLog('🏠 Expedition concluded. Returned to mission control.');
+      };
+    } else {
+      nextBtn.textContent = '🚀 Next Mission ➡';
+      nextBtn.onclick = ()=>{
+        modal.style.display = 'none';
+        nextChapter();
+      };
+    }
+  }
+
+  modal.style.display = 'flex';
 }
 
 function renderChapterContent(index){

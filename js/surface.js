@@ -26,9 +26,15 @@ let playerVelocityY = 0;
 let playerIsGrounded = true;
 const MARS_GRAVITY = 10.5;
 const JUMP_VELOCITY = 5.4;
-const LANDER_POS = { x: 0, z: 5.8 };
+const LANDER_POS = { x: 0, z: 2.8 };
 let surfaceDrag = { active:false, lastX:0, lastY:0 };
 let lastSurfaceTime = performance.now();
+
+let isHoveringLander = false;
+const landerRaycaster = new THREE.Raycaster();
+const screenCenterNDC = new THREE.Vector2(0, 0);
+const mouseNDC = new THREE.Vector2(0, 0);
+let mouseMovedOnScreen = false;
 
 let storyTargetMesh = null;
 let storyTargetGlow = null;
@@ -37,7 +43,7 @@ let storyTargetCollected = false;
 /* -------------------- Terrain height generation (deterministic) -------------------- */
 function terrainHeight(x, z, seed){
   const dist = Math.sqrt(x*x + z*z);
-  const falloff = Math.min(1, Math.max(0, (dist - 10) / 40));
+  const falloff = Math.min(1, Math.max(0, (dist - 14) / 40));
   const n1 = fractalNoise(x + seed*131, z + seed*197, 5, 22, seed);
   const n2 = fractalNoise(x*0.3 + seed*71, z*0.3 + seed*29, 3, 46, seed+17);
   const h = (n1 - 0.5) * 7 + (n2 - 0.5) * 3;
@@ -207,10 +213,10 @@ function scatterRocks(sc, seed, count){
     const dist = 7 + rnd()*Math.min(SURFACE_SIZE/2-6, 95);
     const x = Math.cos(ang)*dist, z = Math.sin(ang)*dist;
 
-    // Completely clear rocks from astronaut spawn point and lander blast area
+    // Completely clear rocks from astronaut spawn point and entire lander landing zone
     const distSpawn = Math.sqrt(x*x + z*z);
     const distLander = Math.hypot(x - LANDER_POS.x, z - LANDER_POS.z);
-    if (distSpawn < 8.5 || distLander < 12.0) continue;
+    if (distSpawn < 10.0 || distLander < 15.0) continue;
 
     const y = terrainHeight(x, z, seed);
 
@@ -427,6 +433,10 @@ function loadLanderModel(onLoad){
     const targetScale = 6.2 / maxDim;
     model.scale.set(targetScale, targetScale, targetScale);
 
+    // Recompute box after scaling and align footpads exactly with ground Y=0
+    box.setFromObject(model);
+    model.position.y -= box.min.y;
+
     surfaceLanderMesh = model;
     onLoad(model.clone());
   }, undefined, (err)=>{
@@ -440,13 +450,13 @@ function spawnLander(scene, seed){
     scene._currentLander = null;
   }
 
-  // Lander placed directly behind the astronaut spawn point (x:0, z:5.8)
+  // Lander placed directly behind the astronaut spawn point (x:0, z:2.8)
   const landerX = LANDER_POS.x;
   const landerZ = LANDER_POS.z;
   const landerY = terrainHeight(landerX, landerZ, seed);
 
   // Solid collision radius so astronaut can't walk back into the spacecraft
-  surfaceRocksData.push({ x: landerX, z: landerZ, radius: 3.8 });
+  surfaceRocksData.push({ x: landerX, z: landerZ, radius: 2.1 });
 
   // 1. Immediately display the detailed procedural Apollo Lunar Lander (100% visible, 0ms latency, CORS-proof)
   const procLander = buildProceduralApolloLunarModule();
@@ -474,8 +484,9 @@ function spawnStoryTarget(seed){
 
   let s = seed*7919 + 101;
   function rnd(){ s = (s*9301+49297)%233280; return s/233280; }
-  const ang = rnd()*Math.PI*2;
-  const dist = 16 + rnd()*20;
+  // Place beacon in the forward field of view (towards -Z, where player faces upon exit)
+  const ang = -Math.PI/2 + (rnd() - 0.5) * (Math.PI * 0.7);
+  const dist = 18 + rnd()*18;
   const x = Math.cos(ang)*dist;
   const z = Math.sin(ang)*dist;
   const y = terrainHeight(x, z, seed);
@@ -516,6 +527,33 @@ function updateStoryTargetCheck(){
     if (statusEl) statusEl.textContent = '✅ Sample collected successfully!';
     if (infoEl) infoEl.classList.add('collected');
     addLog('🧪 Scientific sample collected on the surface.');
+
+    if (typeof onObjectiveCollected === 'function'){
+      onObjectiveCollected();
+    }
+  }
+}
+
+/* -------------------- Lander Crosshair / Cursor Hover Check -------------------- */
+function checkLanderHover(){
+  const promptEl = document.getElementById('lander-interact-prompt');
+  if (!surfaceCamera || !surfaceScene || !surfaceScene._currentLander || (appState !== 'surface' && appState !== 'story')){
+    if (promptEl) promptEl.classList.remove('visible');
+    isHoveringLander = false;
+    return;
+  }
+
+  // Pointer lock uses crosshair at screen center; unlocked uses mouse cursor
+  const rayOriginNDC = document.pointerLockElement ? screenCenterNDC : (mouseMovedOnScreen ? mouseNDC : screenCenterNDC);
+  landerRaycaster.setFromCamera(rayOriginNDC, surfaceCamera);
+  const intersects = landerRaycaster.intersectObject(surfaceScene._currentLander, true);
+
+  if (intersects.length > 0 && intersects[0].distance < 45){
+    isHoveringLander = true;
+    if (promptEl) promptEl.classList.add('visible');
+  } else {
+    isHoveringLander = false;
+    if (promptEl) promptEl.classList.remove('visible');
   }
 }
 
@@ -591,6 +629,7 @@ function renderSurfaceFrame(){
   lastSurfaceTime = now;
   if (!missionComplete) updateSurfaceMovement(dt);
   updateStoryTargetCheck();
+  checkLanderHover();
   renderer.render(surfaceScene, surfaceCamera);
 }
 
@@ -615,6 +654,19 @@ function bindHoldButton(id, code){
 function attachSurfaceControls(){
   window.addEventListener('keydown', (e)=>{
     if ((appState !== 'surface' && appState !== 'story') || missionComplete) return;
+
+    // Press F to board lander and return to menu when aiming at it
+    if ((e.code === 'KeyF' || e.key === 'f' || e.key === 'F') && isHoveringLander){
+      e.preventDefault();
+      if (document.pointerLockElement) document.exitPointerLock();
+      const promptEl = document.getElementById('lander-interact-prompt');
+      if (promptEl) promptEl.classList.remove('visible');
+      isHoveringLander = false;
+      if (typeof goHome === 'function') goHome();
+      addLog('🚀 Boarded the lander and returned to mission control.');
+      return;
+    }
+
     if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD','Space'].includes(e.code)) e.preventDefault();
     keysDown[e.code] = true;
 
@@ -628,6 +680,26 @@ function attachSurfaceControls(){
   window.addEventListener('keyup', (e)=>{ keysDown[e.code] = false; });
 
   const canvas = document.getElementById('mars-canvas');
+
+  // Interactive prompt click fallback (works on click or touch)
+  const landerPromptEl = document.getElementById('lander-interact-prompt');
+  if (landerPromptEl){
+    landerPromptEl.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      if (document.pointerLockElement) document.exitPointerLock();
+      landerPromptEl.classList.remove('visible');
+      isHoveringLander = false;
+      if (typeof goHome === 'function') goHome();
+      addLog('🚀 Boarded the lander and returned to mission control.');
+    });
+  }
+
+  // Track cursor coordinates for unlocked aim & raycasting
+  window.addEventListener('mousemove', (e)=>{
+    mouseNDC.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mouseNDC.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    mouseMovedOnScreen = true;
+  });
 
   // FPS Pointer Lock: click to capture mouse
   canvas.addEventListener('click', ()=>{
@@ -709,6 +781,9 @@ function enterSurfaceMode(opts){
 
 function exitSurfaceMode(){
   if (document.pointerLockElement) document.exitPointerLock();
+  const promptEl = document.getElementById('lander-interact-prompt');
+  if (promptEl) promptEl.classList.remove('visible');
+  isHoveringLander = false;
   playerJumpOffset = 0;
   playerVelocityY = 0;
   playerIsGrounded = true;

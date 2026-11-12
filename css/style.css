@@ -517,3 +517,47 @@ header{
   0%{opacity:1;}
   100%{opacity:0.15;}
 }
+
+/* =======================================================================
+   INTERACTION PROMPT (Lander hover / Press F)
+   ======================================================================= */
+.interact-prompt{
+  position:fixed;
+  top:57%;
+  left:50%;
+  transform:translate(-50%, 0);
+  background:rgba(8,14,26,0.92);
+  border:1px solid var(--cyan);
+  box-shadow:0 0 16px rgba(79,209,255,0.45);
+  color:#fff;
+  padding:8px 18px;
+  border-radius:20px;
+  font-family:'Share Tech Mono',monospace;
+  font-size:0.78rem;
+  letter-spacing:1px;
+  pointer-events:auto;
+  cursor:pointer;
+  display:none;
+  align-items:center;
+  gap:10px;
+  z-index:420;
+  backdrop-filter:blur(6px);
+  animation:promptPulse 1.2s infinite alternate ease-in-out;
+  user-select:none;
+}
+.interact-prompt.visible{
+  display:flex;
+}
+.key-badge{
+  background:var(--cyan);
+  color:#06111a;
+  font-weight:bold;
+  font-size:0.75rem;
+  padding:2px 8px;
+  border-radius:4px;
+  box-shadow:0 0 8px var(--cyan);
+}
+@keyframes promptPulse{
+  0%{transform:translate(-50%, 0) scale(1);box-shadow:0 0 12px rgba(79,209,255,0.35);}
+  100%{transform:translate(-50%, 0) scale(1.04);box-shadow:0 0 24px rgba(79,209,255,0.75);}
+}
