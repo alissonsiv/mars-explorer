@@ -60,6 +60,7 @@ function setAppState(state){
 }
 
 function goHome(){
+  if (document.pointerLockElement) document.exitPointerLock();
   document.getElementById('story-briefing').style.display = 'none';
   document.getElementById('story-complete').style.display = 'none';
   toggleStoryCard(false);
@@ -279,16 +280,130 @@ function loadPoiPhoto(poi){
 }
 
 /* =========================================================================
-   STORY MODE — fully in 3D surface (first person)
+   STORY MODE — FPS-style typewriter and tactical deployment HUD
    ========================================================================= */
-function typeText(el, text, speed=14){
-  if (el._typeInterval) clearInterval(el._typeInterval);
-  el.textContent = ''; let i = 0;
-  el._typeInterval = setInterval(()=>{
-    el.textContent += text[i]; i++;
-    if (i >= text.length) clearInterval(el._typeInterval);
-  }, speed);
+let activeTypeTimers = [];
+let audioCtx = null;
+
+function playTypewriterTick(){
+  try {
+    if (!audioCtx) {
+      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtxClass) return;
+      audioCtx = new AudioCtxClass();
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    const filter = audioCtx.createBiquadFilter();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(1400 + Math.random() * 450, now);
+    osc.frequency.exponentialRampToValueAtTime(320, now + 0.022);
+
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(2400, now);
+    filter.Q.setValueAtTime(3.5, now);
+
+    gain.gain.setValueAtTime(0.035, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.022);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.023);
+  } catch(e) {
+    // Autoplay restrictions before user gesture
+  }
 }
+
+function clearAllTyping(){
+  activeTypeTimers.forEach(t => clearTimeout(t));
+  activeTypeTimers = [];
+}
+
+function typeTextWithCursor(el, text, speed=12, onComplete){
+  if (!el) return;
+  if (el._typeInterval) clearInterval(el._typeInterval);
+
+  el.innerHTML = '<span class="type-body"></span><span class="type-cursor">▌</span>';
+  const bodyEl = el.querySelector('.type-body');
+  const cursorEl = el.querySelector('.type-cursor');
+
+  let i = 0;
+  const interval = setInterval(()=>{
+    if (i < text.length){
+      const ch = text[i];
+      bodyEl.textContent += ch;
+      if (ch !== ' ' && ch !== '\n') {
+        playTypewriterTick();
+      }
+      i++;
+    } else {
+      clearInterval(interval);
+      el._typeInterval = null;
+      setTimeout(()=>{
+        if (cursorEl && cursorEl.parentNode) cursorEl.remove();
+        el.textContent = text;
+        if (onComplete) onComplete();
+      }, 700);
+    }
+  }, speed);
+  el._typeInterval = interval;
+}
+
+function typeText(el, text, speed=14){
+  typeTextWithCursor(el, text, speed);
+}
+
+function triggerFpsMissionIntro(wp, index){
+  clearAllTyping();
+
+  const hud = document.getElementById('fps-mission-intro');
+  const lineLoc = document.getElementById('fps-line-location');
+  const lineSite = document.getElementById('fps-line-site');
+  const lineTele = document.getElementById('fps-line-telemetry');
+  const lineDir = document.getElementById('fps-line-directive');
+
+  if (!hud || !lineLoc || !lineSite || !lineTele || !lineDir) return;
+
+  [lineLoc, lineSite, lineTele, lineDir].forEach(l => { l.innerHTML = ''; });
+  hud.classList.add('active');
+
+  const lines = [
+    { el: lineLoc, text: `LOCATION // JEZERO CRATER, MARS [${wp.lat.toFixed(2)}°N, ${wp.lon.toFixed(2)}°E]`, speed: 14 },
+    { el: lineSite, text: `SITE // ${wp.name.toUpperCase()} (SOL 1350)`, speed: 14 },
+    { el: lineTele, text: `ELEVATION // ${wp.elevation}M · EVA SUIT ACTIVE`, speed: 14 },
+    { el: lineDir, text: `DIRECTIVE // ${wp.objective}`, speed: 15 }
+  ];
+
+  let currentLineIdx = 0;
+
+  function typeNextLine(){
+    if (currentLineIdx >= lines.length){
+      const fadeTimer = setTimeout(()=>{
+        hud.classList.remove('active');
+      }, 4200);
+      activeTypeTimers.push(fadeTimer);
+      return;
+    }
+
+    const item = lines[currentLineIdx];
+    currentLineIdx++;
+    typeTextWithCursor(item.el, item.text, item.speed, ()=>{
+      const pauseTimer = setTimeout(typeNextLine, 110);
+      activeTypeTimers.push(pauseTimer);
+    });
+  }
+
+  typeNextLine();
+}
+
 function buildStoryDots(){
   const container = document.getElementById('story-dots');
   container.innerHTML = '';
@@ -356,16 +471,19 @@ function renderChapterContent(index){
   storyState.totalDistance = totalDist; storyState.totalTime = totalTime; storyState.o2 = o2;
 
   document.getElementById('story-chapter-tag').textContent = `CHAPTER ${index+1} / ${storyWaypoints.length}`;
-  document.getElementById('story-title').textContent = `${wp.icon} ${wp.name}`;
-  document.getElementById('story-subtitle').textContent = wp.subtitle;
-  typeText(document.getElementById('story-narrative'), wp.narrative, 14);
+  const titleEl = document.getElementById('story-title');
+  if (titleEl) typeTextWithCursor(titleEl, `${wp.icon} ${wp.name}`, 18);
+  const subEl = document.getElementById('story-subtitle');
+  if (subEl) typeTextWithCursor(subEl, wp.subtitle, 16);
+  typeTextWithCursor(document.getElementById('story-narrative'), wp.narrative, 11);
+  typeTextWithCursor(document.getElementById('story-objective'), `🎯 Objective: ${wp.objective}`, 14);
+  triggerFpsMissionIntro(wp, index);
   document.getElementById('story-leg-dist').textContent = index===0 ? '—' : legDist.toFixed(2)+' km';
   document.getElementById('story-total-dist').textContent = totalDist.toFixed(2)+' km';
   document.getElementById('story-elevation').textContent = wp.elevation+' m';
   document.getElementById('story-sample').textContent = wp.sample || '—';
   document.getElementById('story-hazard').innerHTML = `⚠️ <strong>Hazard:</strong> ${wp.hazard}`;
   document.getElementById('story-resource').innerHTML = `💠 <strong>Discovery:</strong> ${wp.resource}`;
-  document.getElementById('story-objective').textContent = `🎯 Objective: ${wp.objective}`;
 
   const o2pct = Math.max(2, 100 - (o2/10)*100);
   const fill = document.getElementById('o2-gauge-fill');
@@ -543,6 +661,7 @@ function attachUIEvents(){
   if (btnToggleStory){
     btnToggleStory.addEventListener('click', safeInvoke(()=>toggleStoryCard(), 'toggleStoryCard'));
   }
+
   window.addEventListener('keydown', (e)=>{
     if (e.code === 'KeyH' && appState === 'story'){
       e.preventDefault();

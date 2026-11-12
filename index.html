@@ -155,7 +155,7 @@
         <span id="story-toggle-icon">▾</span> <span id="story-toggle-text">Minimize Log</span>
       </button>
     </div>
-    <h2 id="story-title">-</h2>
+    <h2 id="story-title" class="story-title">-</h2>
     <div class="story-subtitle" id="story-subtitle">-</div>
     <div class="story-body">
       <div class="story-main">
@@ -198,6 +198,15 @@
 
 <!-- SURFACE MODE HUD -->
 <div id="surface-hud">
+  <!-- FPS TACTICAL MISSION INTRO OVERLAY -->
+  <div id="fps-mission-intro" class="fps-intro-hud">
+    <div class="fps-intro-bracket">[ TACTICAL EVA DEPLOYMENT // ARES-7 ]</div>
+    <div class="fps-intro-line" id="fps-line-location"></div>
+    <div class="fps-intro-line" id="fps-line-site"></div>
+    <div class="fps-intro-line" id="fps-line-telemetry"></div>
+    <div class="fps-intro-line objective" id="fps-line-directive"></div>
+  </div>
+
   <div class="surface-topbar panel">
     <button class="icon-btn" id="btn-exit-surface" title="Return to orbit">⬆️</button>
     <div class="surface-location" id="surface-location-label">Martian Surface</div>
