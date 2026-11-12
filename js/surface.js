@@ -598,7 +598,13 @@ function renderSurfaceFrame(){
 function bindHoldButton(id, code){
   const el = document.getElementById(id);
   if (!el) return;
-  const down = (e)=>{ e.preventDefault(); keysDown[code]=true; };
+  const down = (e)=>{
+    e.preventDefault();
+    keysDown[code]=true;
+    if (appState === 'story' && typeof toggleStoryCard === 'function' && !storyCardMinimized){
+      toggleStoryCard(true);
+    }
+  };
   const up = ()=>{ keysDown[code]=false; };
   el.addEventListener('pointerdown', down);
   el.addEventListener('pointerup', up);
@@ -611,6 +617,13 @@ function attachSurfaceControls(){
     if ((appState !== 'surface' && appState !== 'story') || missionComplete) return;
     if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD','Space'].includes(e.code)) e.preventDefault();
     keysDown[e.code] = true;
+
+    // Auto-minimize story-card on movement start (WASD or Arrow keys)
+    if (appState === 'story' && ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD'].includes(e.code)){
+      if (typeof toggleStoryCard === 'function' && !storyCardMinimized){
+        toggleStoryCard(true);
+      }
+    }
   });
   window.addEventListener('keyup', (e)=>{ keysDown[e.code] = false; });
 

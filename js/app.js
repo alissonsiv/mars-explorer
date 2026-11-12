@@ -453,6 +453,7 @@ function enterStoryChapterSurface(index){
 
   setAppState('story');
   if (controls) controls.enabled = false;
+  toggleStoryCard(false);
 
   renderChapterContent(index);
 
