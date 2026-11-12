@@ -455,7 +455,7 @@ function bindHoldButton(id, code){
 function attachSurfaceControls(){
   window.addEventListener('keydown', (e)=>{
     if ((appState !== 'surface' && appState !== 'story') || missionComplete) return;
-    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD'].includes(e.code)) e.preventDefault();
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD','Space'].includes(e.code)) e.preventDefault();
     keysDown[e.code] = true;
   });
   window.addEventListener('keyup', (e)=>{ keysDown[e.code] = false; });
