@@ -297,6 +297,48 @@ header{
   transform:translate(-50%,-130%);display:none;white-space:nowrap;
 }
 
+/* ---------- FOCUS HUD ---------- */
+#focus-hud{
+  position:fixed;bottom:88px;left:50%;transform:translate(-50%,6px);
+  z-index:18;display:flex;align-items:center;gap:8px;
+  padding:7px 12px;border-radius:20px;
+  background:rgba(8,12,22,.82);border:1px solid var(--panel-border);
+  backdrop-filter:blur(8px);
+  font-family:'Share Tech Mono',monospace;font-size:.68rem;letter-spacing:.5px;color:var(--muted);
+  opacity:0;visibility:hidden;pointer-events:none;
+  transition:opacity .25s ease, transform .25s ease, visibility .25s;
+}
+#focus-hud.visible{
+  opacity:.65;visibility:visible;pointer-events:auto;transform:translate(-50%,0);
+}
+#focus-hud.visible:hover{opacity:1;}
+#focus-hud .focus-indicator{
+  width:7px;height:7px;border-radius:50%;background:var(--orange);flex-shrink:0;
+  box-shadow:0 0 8px var(--orange);animation:focusPulse 2s ease-in-out infinite;
+}
+@keyframes focusPulse{0%,100%{opacity:.5;transform:scale(.85);}50%{opacity:1;transform:scale(1);}}
+#focus-hud .focus-label{color:var(--orange);letter-spacing:1.5px;}
+#focus-hud #focus-hud-label{
+  color:var(--text);font-weight:600;max-width:220px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+#focus-hud .focus-sep{opacity:.4;}
+#btn-unfocus{
+  background:none;border:none;color:var(--cyan);cursor:pointer;padding:2px 4px;border-radius:6px;
+  font-family:'Share Tech Mono',monospace;font-size:.68rem;letter-spacing:.5px;transition:.2s;
+}
+#btn-unfocus:hover{color:#fff;background:rgba(79,209,255,.15);text-shadow:0 0 8px rgba(79,209,255,.6);}
+#btn-unfocus kbd{
+  font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--muted);
+  border:1px solid rgba(255,255,255,.2);border-radius:4px;padding:1px 4px;margin-left:3px;
+}
+
+@media (max-width:800px){
+  #focus-hud{left:18px;transform:translate(0,6px);}
+  #focus-hud.visible{transform:translate(0,0);}
+  #focus-hud #focus-hud-label{max-width:110px;}
+}
+
 /* =======================================================================
    STORY MODE
    ======================================================================= */

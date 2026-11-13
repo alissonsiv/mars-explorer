@@ -14,6 +14,15 @@
 <div id="vignette"></div>
 <div id="tooltip"></div>
 
+<!-- FOCUS HUD (only visible while a POI is focused) -->
+<div id="focus-hud">
+  <span class="focus-indicator"></span>
+  <span class="focus-label">FOCUSED:</span>
+  <span id="focus-hud-label">—</span>
+  <span class="focus-sep">·</span>
+  <button id="btn-unfocus" type="button">Exit focus <kbd>Esc</kbd></button>
+</div>
+
 <!-- LOADING -->
 <div id="loading-screen">
   <div class="planet-spinner"></div>
@@ -78,7 +87,7 @@
   </div>
   <div class="control-row">
     <button class="icon-btn on" id="btn-rotate" title="Auto-rotate">🔄</button>
-    <button class="icon-btn" id="btn-reset" title="Reset camera">🎯</button>
+    <button class="icon-btn" id="btn-reset" title="Reset view (or exit focus)">🎯</button>
     <button class="icon-btn" id="btn-fullscreen" title="Fullscreen">⛶</button>
   </div>
 </div>

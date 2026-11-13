@@ -52,6 +52,8 @@ function setAppState(state){
     if (surfTopbar) surfTopbar.style.display = 'flex';
   }
 
+  if (state !== 'dashboard') clearFocus();
+
   if (markerGroup) markerGroup.visible = (state==='dashboard');
   if (controls) controls.autoRotate = (state==='dashboard' || state==='start');
 
@@ -485,15 +487,23 @@ function attachUIEvents(){
     btn.addEventListener('click', safeInvoke(()=>switchTab(btn.dataset.tab), 'switchTab'));
   });
 
-  document.getElementById('btn-rotate').addEventListener('click', safeInvoke((e)=>{
+  document.getElementById('btn-rotate').addEventListener('click', safeInvoke(()=>{
+    cancelCameraTween();
     controls.autoRotate = !controls.autoRotate;
-    e.target.classList.toggle('on', controls.autoRotate);
+    syncAutoRotateButton();
   }, 'btn-rotate'));
 
   document.getElementById('btn-reset').addEventListener('click', safeInvoke(()=>{
+    if (focusState.id){ unfocusPoi(); return; }
     animateCameraTo(new THREE.Vector3(10,35,140), new THREE.Vector3(0,0,0));
     if (selectedGroup){ resetMarkerStyle(selectedGroup); selectedGroup = null; }
   }, 'btn-reset'));
+
+  document.getElementById('btn-unfocus').addEventListener('click', safeInvoke(unfocusPoi, 'unfocusPoi'));
+
+  document.addEventListener('keydown', safeInvoke((e)=>{
+    if (e.key === 'Escape' && appState === 'dashboard' && focusState.id) unfocusPoi();
+  }, 'Escape/unfocus'));
 
   document.getElementById('btn-fullscreen').addEventListener('click', safeInvoke(()=>{
     if (!document.fullscreenElement) document.documentElement.requestFullscreen();

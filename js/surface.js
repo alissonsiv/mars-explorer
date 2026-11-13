@@ -321,6 +321,7 @@ function setAppStateSurfaceUI(active, label){
 
 function enterSurfaceMode(opts){
   opts = opts || {};
+  if (focusState.id) unfocusPoi();
   ensureSurfaceSceneInit();
   const seed = opts.seed || Math.floor(Math.random()*10000)+1;
   buildSurfaceWorld(seed);
