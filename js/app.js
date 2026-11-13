@@ -62,8 +62,23 @@ function setAppState(state){
 }
 
 function goHome(){
+  if (document.pointerLockElement) document.exitPointerLock();
   document.getElementById('story-briefing').style.display = 'none';
   document.getElementById('story-complete').style.display = 'none';
+  const chapterModal = document.getElementById('chapter-complete-modal');
+  if (chapterModal) chapterModal.style.display = 'none';
+  const landerPrompt = document.getElementById('lander-interact-prompt');
+  if (landerPrompt) landerPrompt.classList.remove('visible');
+  if (typeof isHoveringLander !== 'undefined') isHoveringLander = false;
+
+  const surfHud = document.getElementById('surface-hud');
+  if (surfHud) surfHud.style.display = 'none';
+  const storyPanel = document.getElementById('story-panel');
+  if (storyPanel) storyPanel.style.display = 'none';
+  const progressWrap = document.getElementById('story-progress-wrap');
+  if (progressWrap) progressWrap.style.display = 'none';
+
+  toggleStoryCard(false);
 
   storyState.active = false;
   storyState.started = false;
@@ -280,16 +295,130 @@ function loadPoiPhoto(poi){
 }
 
 /* =========================================================================
-   STORY MODE — fully in 3D surface (first person)
+   STORY MODE — FPS-style typewriter and tactical deployment HUD
    ========================================================================= */
-function typeText(el, text, speed=14){
-  if (el._typeInterval) clearInterval(el._typeInterval);
-  el.textContent = ''; let i = 0;
-  el._typeInterval = setInterval(()=>{
-    el.textContent += text[i]; i++;
-    if (i >= text.length) clearInterval(el._typeInterval);
-  }, speed);
+let activeTypeTimers = [];
+let audioCtx = null;
+
+function playTypewriterTick(){
+  try {
+    if (!audioCtx) {
+      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtxClass) return;
+      audioCtx = new AudioCtxClass();
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    const filter = audioCtx.createBiquadFilter();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(1400 + Math.random() * 450, now);
+    osc.frequency.exponentialRampToValueAtTime(320, now + 0.022);
+
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(2400, now);
+    filter.Q.setValueAtTime(3.5, now);
+
+    gain.gain.setValueAtTime(0.035, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.022);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.023);
+  } catch(e) {
+    // Autoplay restrictions before user gesture
+  }
 }
+
+function clearAllTyping(){
+  activeTypeTimers.forEach(t => clearTimeout(t));
+  activeTypeTimers = [];
+}
+
+function typeTextWithCursor(el, text, speed=12, onComplete){
+  if (!el) return;
+  if (el._typeInterval) clearInterval(el._typeInterval);
+
+  el.innerHTML = '<span class="type-body"></span><span class="type-cursor">▌</span>';
+  const bodyEl = el.querySelector('.type-body');
+  const cursorEl = el.querySelector('.type-cursor');
+
+  let i = 0;
+  const interval = setInterval(()=>{
+    if (i < text.length){
+      const ch = text[i];
+      bodyEl.textContent += ch;
+      if (ch !== ' ' && ch !== '\n') {
+        playTypewriterTick();
+      }
+      i++;
+    } else {
+      clearInterval(interval);
+      el._typeInterval = null;
+      setTimeout(()=>{
+        if (cursorEl && cursorEl.parentNode) cursorEl.remove();
+        el.textContent = text;
+        if (onComplete) onComplete();
+      }, 700);
+    }
+  }, speed);
+  el._typeInterval = interval;
+}
+
+function typeText(el, text, speed=14){
+  typeTextWithCursor(el, text, speed);
+}
+
+function triggerFpsMissionIntro(wp, index){
+  clearAllTyping();
+
+  const hud = document.getElementById('fps-mission-intro');
+  const lineLoc = document.getElementById('fps-line-location');
+  const lineSite = document.getElementById('fps-line-site');
+  const lineTele = document.getElementById('fps-line-telemetry');
+  const lineDir = document.getElementById('fps-line-directive');
+
+  if (!hud || !lineLoc || !lineSite || !lineTele || !lineDir) return;
+
+  [lineLoc, lineSite, lineTele, lineDir].forEach(l => { l.innerHTML = ''; });
+  hud.classList.add('active');
+
+  const lines = [
+    { el: lineLoc, text: `LOCATION // JEZERO CRATER, MARS [${wp.lat.toFixed(2)}°N, ${wp.lon.toFixed(2)}°E]`, speed: 14 },
+    { el: lineSite, text: `SITE // ${wp.name.toUpperCase()} (SOL 1350)`, speed: 14 },
+    { el: lineTele, text: `ELEVATION // ${wp.elevation}M · EVA SUIT ACTIVE`, speed: 14 },
+    { el: lineDir, text: `DIRECTIVE // ${wp.objective}`, speed: 15 }
+  ];
+
+  let currentLineIdx = 0;
+
+  function typeNextLine(){
+    if (currentLineIdx >= lines.length){
+      const fadeTimer = setTimeout(()=>{
+        hud.classList.remove('active');
+      }, 4200);
+      activeTypeTimers.push(fadeTimer);
+      return;
+    }
+
+    const item = lines[currentLineIdx];
+    currentLineIdx++;
+    typeTextWithCursor(item.el, item.text, item.speed, ()=>{
+      const pauseTimer = setTimeout(typeNextLine, 110);
+      activeTypeTimers.push(pauseTimer);
+    });
+  }
+
+  typeNextLine();
+}
+
 function buildStoryDots(){
   const container = document.getElementById('story-dots');
   container.innerHTML = '';
@@ -328,6 +457,12 @@ function enterStoryChapterSurface(index){
   if (storyTransitioning) return;
   storyTransitioning = true;
 
+  const chapterModal = document.getElementById('chapter-complete-modal');
+  if (chapterModal) chapterModal.style.display = 'none';
+  const landerPrompt = document.getElementById('lander-interact-prompt');
+  if (landerPrompt) landerPrompt.classList.remove('visible');
+  if (typeof isHoveringLander !== 'undefined') isHoveringLander = false;
+
   storyState.index = index;
   const wp = storyWaypoints[index];
   loadChapterPhoto(wp);
@@ -339,10 +474,63 @@ function enterStoryChapterSurface(index){
 
   setAppState('story');
   if (controls) controls.enabled = false;
+  toggleStoryCard(false);
 
   renderChapterContent(index);
 
   setTimeout(()=>{ storyTransitioning = false; }, 300);
+}
+
+/* -------------------- Mission Objective Secured Modal -------------------- */
+function onObjectiveCollected(){
+  if (document.pointerLockElement) document.exitPointerLock();
+
+  const isLast = (storyState.index === storyWaypoints.length - 1);
+  const wp = storyWaypoints[storyState.index];
+
+  const modal = document.getElementById('chapter-complete-modal');
+  if (!modal) return;
+
+  const titleEl = document.getElementById('chapter-complete-title');
+  const descEl = document.getElementById('chapter-complete-desc');
+  const gridEl = document.getElementById('chapter-complete-grid');
+  const nextBtn = document.getElementById('btn-chapter-next');
+
+  if (titleEl){
+    titleEl.textContent = isLast ? '🏆 EXPEDITION COMPLETE' : `🎉 CHAPTER ${storyState.index + 1} COMPLETED`;
+  }
+  if (descEl){
+    descEl.textContent = isLast
+      ? `You have reached ${wp.name} and completed all objectives of the human exploration of Jezero Crater!`
+      : `Scientific sample secured at ${wp.name}. Geological telemetry and core readings have been logged.`;
+  }
+  if (gridEl){
+    gridEl.innerHTML = `
+      <div><span>WAYPOINT</span><strong>${wp.name}</strong></div>
+      <div><span>SAMPLE</span><strong>${wp.sample || 'Core Regolith'}</strong></div>
+      <div><span>DISTANCE TRAVELED</span><strong>${storyState.totalDistance.toFixed(2)} km</strong></div>
+      <div><span>EXPEDITION PHASE</span><strong>${storyState.index + 1} / ${storyWaypoints.length}</strong></div>
+    `;
+  }
+
+  if (nextBtn){
+    if (isLast){
+      nextBtn.textContent = '🏠 Return to Home Screen';
+      nextBtn.onclick = ()=>{
+        modal.style.display = 'none';
+        goHome();
+        addLog('🏠 Expedition concluded. Returned to mission control.');
+      };
+    } else {
+      nextBtn.textContent = '🚀 Next Mission ➡';
+      nextBtn.onclick = ()=>{
+        modal.style.display = 'none';
+        nextChapter();
+      };
+    }
+  }
+
+  modal.style.display = 'flex';
 }
 
 function renderChapterContent(index){
@@ -357,16 +545,19 @@ function renderChapterContent(index){
   storyState.totalDistance = totalDist; storyState.totalTime = totalTime; storyState.o2 = o2;
 
   document.getElementById('story-chapter-tag').textContent = `CHAPTER ${index+1} / ${storyWaypoints.length}`;
-  document.getElementById('story-title').textContent = `${wp.icon} ${wp.name}`;
-  document.getElementById('story-subtitle').textContent = wp.subtitle;
-  typeText(document.getElementById('story-narrative'), wp.narrative, 14);
+  const titleEl = document.getElementById('story-title');
+  if (titleEl) typeTextWithCursor(titleEl, `${wp.icon} ${wp.name}`, 18);
+  const subEl = document.getElementById('story-subtitle');
+  if (subEl) typeTextWithCursor(subEl, wp.subtitle, 16);
+  typeTextWithCursor(document.getElementById('story-narrative'), wp.narrative, 11);
+  typeTextWithCursor(document.getElementById('story-objective'), `🎯 Objective: ${wp.objective}`, 14);
+  triggerFpsMissionIntro(wp, index);
   document.getElementById('story-leg-dist').textContent = index===0 ? '—' : legDist.toFixed(2)+' km';
   document.getElementById('story-total-dist').textContent = totalDist.toFixed(2)+' km';
   document.getElementById('story-elevation').textContent = wp.elevation+' m';
   document.getElementById('story-sample').textContent = wp.sample || '—';
   document.getElementById('story-hazard').innerHTML = `⚠️ <strong>Hazard:</strong> ${wp.hazard}`;
   document.getElementById('story-resource').innerHTML = `💠 <strong>Discovery:</strong> ${wp.resource}`;
-  document.getElementById('story-objective').textContent = `🎯 Objective: ${wp.objective}`;
 
   const o2pct = Math.max(2, 100 - (o2/10)*100);
   const fill = document.getElementById('o2-gauge-fill');
@@ -427,6 +618,22 @@ function restartStory(){
   missionComplete = false;
   storyState.started = true;
   enterStoryChapterSurface(0);
+}
+
+let storyCardMinimized = false;
+function toggleStoryCard(forceState){
+  const card = document.getElementById('story-card');
+  const icon = document.getElementById('story-toggle-icon');
+  const text = document.getElementById('story-toggle-text');
+  if (!card) return;
+  if (typeof forceState === 'boolean'){
+    storyCardMinimized = forceState;
+  } else {
+    storyCardMinimized = !storyCardMinimized;
+  }
+  card.classList.toggle('minimized', storyCardMinimized);
+  if (icon) icon.textContent = storyCardMinimized ? '▴' : '▾';
+  if (text) text.textContent = storyCardMinimized ? 'Expand Log' : 'Minimize Log';
 }
 
 /* =========================================================================
@@ -531,6 +738,18 @@ function attachUIEvents(){
   document.getElementById('btn-finish-exit').addEventListener('click', safeInvoke(goHome, 'goHome (finish-exit)'));
 
   document.getElementById('btn-exit-surface').addEventListener('click', safeInvoke(exitSurfaceMode, 'exitSurfaceMode'));
+
+  const btnToggleStory = document.getElementById('btn-toggle-story-card');
+  if (btnToggleStory){
+    btnToggleStory.addEventListener('click', safeInvoke(()=>toggleStoryCard(), 'toggleStoryCard'));
+  }
+
+  window.addEventListener('keydown', (e)=>{
+    if (e.code === 'KeyH' && appState === 'story'){
+      e.preventDefault();
+      toggleStoryCard();
+    }
+  });
 
   attachSurfaceControls();
 

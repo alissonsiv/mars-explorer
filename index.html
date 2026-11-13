@@ -157,9 +157,14 @@
     <span id="story-target-distance">-- m</span>
   </div>
 
-  <div class="story-card panel">
-    <div class="chapter-tag" id="story-chapter-tag">CHAPTER 1 / 6</div>
-    <h2 id="story-title">-</h2>
+  <div class="story-card panel" id="story-card">
+    <div class="story-card-header">
+      <div class="chapter-tag" id="story-chapter-tag">CHAPTER 1 / 6</div>
+      <button class="story-toggle-btn" id="btn-toggle-story-card" title="Toggle HUD mode (Shortcut: H)">
+        <span id="story-toggle-icon">▾</span> <span id="story-toggle-text">Minimize Log</span>
+      </button>
+    </div>
+    <h2 id="story-title" class="story-title">-</h2>
     <div class="story-subtitle" id="story-subtitle">-</div>
     <div class="story-body">
       <div class="story-main">
@@ -186,6 +191,18 @@
   </div>
 </div>
 
+<div class="story-modal" id="chapter-complete-modal">
+  <div class="story-modal-inner panel">
+    <div class="mission-badge" style="background:rgba(57,255,136,.15);color:#39ff88;border-color:rgba(57,255,136,.4)">OBJECTIVE SECURED</div>
+    <h2 id="chapter-complete-title">🎉 CHAPTER COMPLETED</h2>
+    <p class="story-lead" id="chapter-complete-desc">
+      Scientific sample successfully collected on the Martian surface.
+    </p>
+    <div class="briefing-grid" id="chapter-complete-grid"></div>
+    <button class="cta-btn" id="btn-chapter-next">🚀 Next Mission ➡</button>
+  </div>
+</div>
+
 <div class="story-modal" id="story-complete">
   <div class="story-modal-inner panel">
     <div class="mission-badge" style="background:rgba(57,255,136,.15);color:#39ff88;border-color:rgba(57,255,136,.4)">MISSION COMPLETE</div>
@@ -202,12 +219,24 @@
 
 <!-- SURFACE MODE HUD -->
 <div id="surface-hud">
+  <!-- FPS TACTICAL MISSION INTRO OVERLAY -->
+  <div id="fps-mission-intro" class="fps-intro-hud">
+    <div class="fps-intro-bracket">[ TACTICAL EVA DEPLOYMENT // ARES-7 ]</div>
+    <div class="fps-intro-line" id="fps-line-location"></div>
+    <div class="fps-intro-line" id="fps-line-site"></div>
+    <div class="fps-intro-line" id="fps-line-telemetry"></div>
+    <div class="fps-intro-line objective" id="fps-line-directive"></div>
+  </div>
+
   <div class="surface-topbar panel">
     <button class="icon-btn" id="btn-exit-surface" title="Return to orbit">⬆️</button>
     <div class="surface-location" id="surface-location-label">Martian Surface</div>
-    <div class="surface-hint">Drag to look · WASD to move</div>
+    <div class="surface-hint">Click for FPS aim · WASD to move · SPACE to jump · ESC to release · H for log</div>
   </div>
   <div class="surface-crosshair">+</div>
+  <div id="lander-interact-prompt" class="interact-prompt" title="Board spacecraft and return to orbit/menu">
+    <span class="key-badge">F</span> Press F to back to menu
+  </div>
   <div class="surface-controls">
     <div class="surf-dpad">
       <button class="surf-btn" id="surf-btn-forward">▲</button>
@@ -223,6 +252,7 @@
 <!-- LIBS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 
 <!-- APP SCRIPTS (order matters) -->
 <script src="js/utils.js"></script>
