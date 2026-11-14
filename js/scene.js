@@ -13,6 +13,11 @@ let raycaster, mouse;
 let hitboxes = [];
 let hoveredGroup = null, selectedGroup = null;
 
+// Focus mode: remembers where the camera was before focusing so we can
+// return exactly there when the user exits focus.
+const focusState = { id:null, prevCamera:null, prevTarget:null, prevAutoRotate:true };
+let cameraTween = null;
+
 function initScene(){
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 5000);
@@ -26,7 +31,10 @@ function initScene(){
   controls = new THREE.OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true; controls.dampingFactor = 0.06;
   controls.minDistance = 58; controls.maxDistance = 400;
+  controls.maxPolarAngle = Math.PI - 0.02;
   controls.autoRotate = true; controls.autoRotateSpeed = 0.35;
+  // Any manual interaction cancels an in-flight camera animation.
+  controls.addEventListener('start', cancelCameraTween);
 
   glowTexture = generateGlowTexture();
 
@@ -201,7 +209,9 @@ function onPointerUp(e){
   if (appState !== 'dashboard') return;
   const dist = Math.hypot(e.clientX-downPos.x, e.clientY-downPos.y);
   if (dist > 5) return;
-  if (hoveredGroup) handleMarkerClick(hoveredGroup);
+  if (hoveredGroup){ handleMarkerClick(hoveredGroup); return; }
+  // Click on empty space while focused = exit focus.
+  if (focusState.id) unfocusPoi();
 }
 function onPointerMove(e){
   const tooltip = document.getElementById('tooltip');
@@ -231,38 +241,146 @@ function onPointerMove(e){
 }
 function highlightMarker(g, scale){ g.userData.core.scale.setScalar(scale); g.userData.glow.scale.set(4.5*scale,4.5*scale,1); }
 function resetMarkerStyle(g){ g.userData.core.scale.setScalar(1); g.userData.glow.scale.set(4.5,4.5,1); }
+// Closer camera → the fixed-size glow sprite would cover the terrain, so
+// shrink the selected marker while in focus mode.
+function setFocusedMarkerStyle(g){
+  g.userData.core.scale.setScalar(1.15);
+  g.userData.glow.scale.set(2.2, 2.2, 1);
+}
 
 function handleMarkerClick(g){
   const poi = g.userData.poi;
   selectMarker(g);
   openInfoPanel(poi);
   switchTab('info');
+  // Already in focus mode: clicking another marker moves the focus there.
+  if (focusState.id && focusState.id !== poi.id) focusOnPoi(poi.id);
 }
 function selectMarker(g){ if (selectedGroup) resetMarkerStyle(selectedGroup); selectedGroup = g; highlightMarker(g, 1.6); }
 
 function focusOnPoi(id){
   const g = markerGroup.children.find(c => c.userData.poi.id === id);
   if (!g) return;
+
+  // First focus: remember the pre-focus view so unfocus can restore it.
+  // If a camera animation is in flight, remember its destination instead of
+  // the current mid-flight position.
+  if (!focusState.id){
+    if (cameraTween){
+      focusState.prevCamera = cameraTween.endPos.clone();
+      focusState.prevTarget = cameraTween.endTarget.clone();
+      focusState.prevAutoRotate = cameraTween.restoreAutoRotate;
+    } else {
+      focusState.prevCamera = camera.position.clone();
+      focusState.prevTarget = controls.target.clone();
+      focusState.prevAutoRotate = controls.autoRotate;
+    }
+  }
+  focusState.id = id;
+
+  // Keep OrbitControls targeted at the planet center so orbiting stays
+  // intuitive. Placing the camera on the POI normal keeps it screen-centered,
+  // and the distance stays above controls.minDistance.
   const dir = g.position.clone().normalize();
-  const camPos = dir.clone().multiplyScalar(MARS_RADIUS + 45);
-  animateCameraTo(camPos, g.position.clone());
+  const camPos = dir.clone().multiplyScalar(MARS_RADIUS + 20);
+  animateCameraTo(camPos, new THREE.Vector3(0,0,0), 1200, { autoRotate:false });
+
   selectMarker(g);
+  if (selectedGroup === g) setFocusedMarkerStyle(g);
+  updateFocusHud(g.userData.poi);
+  logSafe(`🎯 Focused on ${g.userData.poi.name}`);
+}
+
+function unfocusPoi(){
+  if (!focusState.id) return;
+
+  const prevCamera = focusState.prevCamera || new THREE.Vector3(10,35,140);
+  const prevTarget = focusState.prevTarget || new THREE.Vector3(0,0,0);
+  const prevAutoRotate = focusState.prevAutoRotate !== false;
+
+  focusState.id = null;
+  focusState.prevCamera = null;
+  focusState.prevTarget = null;
+
+  hideFocusHud();
+  if (selectedGroup){ resetMarkerStyle(selectedGroup); selectedGroup = null; }
+
+  animateCameraTo(prevCamera, prevTarget, 900, {
+    autoRotate: prevAutoRotate && appState === 'dashboard'
+  });
+  logSafe('🎯 Focus cleared.');
+}
+
+// Leaves focus immediately (no animation) — used when changing app state.
+function clearFocus(){
+  cancelCameraTween();
+  focusState.id = null;
+  focusState.prevCamera = null;
+  focusState.prevTarget = null;
+  hideFocusHud();
+}
+
+function updateFocusHud(poi){
+  const hud = document.getElementById('focus-hud');
+  const label = document.getElementById('focus-hud-label');
+  if (!hud) return;
+  if (label) label.textContent = `${TYPE_ICONS[poi.type] || '🎯'} ${poi.name}`;
+  hud.classList.add('visible');
+}
+function hideFocusHud(){
+  const hud = document.getElementById('focus-hud');
+  if (hud) hud.classList.remove('visible');
 }
 
 /* -------------------- Camera -------------------- */
-function animateCameraTo(pos, target, duration=1200){
+// Single cancellable camera tween. Starting a new one cancels the previous,
+// and auto-rotate is suspended while the camera is moving.
+function animateCameraTo(pos, target, duration=1200, opts={}){
+  cancelCameraTween();
+
   const startPos = camera.position.clone();
   const startTarget = controls.target.clone();
+  const restoreAutoRotate = (opts.autoRotate !== undefined) ? opts.autoRotate : controls.autoRotate;
+
+  controls.autoRotate = false;
+  syncAutoRotateButton();
+
+  const tween = { cancelled:false, restoreAutoRotate, endPos:pos.clone(), endTarget:target.clone() };
+  cameraTween = tween;
   const t0 = performance.now();
+
+  function finish(){
+    if (cameraTween !== tween) return;
+    cameraTween = null;
+    controls.autoRotate = restoreAutoRotate;
+    syncAutoRotateButton();
+    if (typeof opts.onComplete === 'function') opts.onComplete();
+  }
   function step(now){
+    if (tween.cancelled) return;
     const t = Math.min((now-t0)/duration, 1);
     const e = easeInOutQuad(t);
     camera.position.lerpVectors(startPos, pos, e);
     controls.target.lerpVectors(startTarget, target, e);
     controls.update();
     if (t<1) requestAnimationFrame(step);
+    else finish();
   }
   requestAnimationFrame(step);
+}
+
+function cancelCameraTween(){
+  if (!cameraTween) return;
+  const tween = cameraTween;
+  cameraTween = null;
+  tween.cancelled = true;
+  controls.autoRotate = tween.restoreAutoRotate;
+  syncAutoRotateButton();
+}
+
+function syncAutoRotateButton(){
+  const btn = document.getElementById('btn-rotate');
+  if (btn && controls) btn.classList.toggle('on', !!controls.autoRotate);
 }
 
 /* -------------------- Loop / resize -------------------- */
